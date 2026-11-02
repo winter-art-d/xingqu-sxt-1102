@@ -3,49 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>终极版：手势魔法圣诞树</title>
+    <title>致特别的你</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; width: 100vw; height: 100vh; font-family: 'Microsoft YaHei', sans-serif; }
         
+        /* 隐藏摄像头画面 */
         #webcam, #output_canvas { display: none; }
 
         #ui-hint {
-            position: absolute; bottom: 30px; width: 100%; text-align: center; 
-            color: rgba(255, 215, 0, 0.6); font-size: 16px; pointer-events: none; 
-            letter-spacing: 3px; z-index: 999; text-shadow: 0 0 10px #ffd700;
+            position: absolute; bottom: 20px; width: 100%; text-align: center; 
+            color: rgba(255, 215, 0, 0.6); font-size: 14px; pointer-events: none; 
+            letter-spacing: 2px; z-index: 999; text-shadow: 0 0 10px #ffd700;
         }
         
         #gesture-text {
-            position: absolute; top: 30px; width: 100%; text-align: center;
-            color: #fff; font-size: 26px; font-weight: bold; pointer-events: none;
+            position: absolute; top: 20px; width: 100%; text-align: center;
+            color: #fff; font-size: 20px; font-weight: bold; pointer-events: none;
             z-index: 999; text-shadow: 0 0 20px #00ffff; opacity: 0.8;
         }
 
         #romantic-text {
             position: absolute; top: 15%; left: 50%; transform: translate(-50%, -50%);
-            color: #fff8d6; font-size: 3.5rem; font-weight: bold; text-align: center;
+            color: #fff8d6; font-size: 2.5rem; font-weight: bold; text-align: center;
             text-shadow: 0 0 10px #ffd700, 0 0 20px #ffa500, 0 0 40px #ff8c00;
             pointer-events: none; opacity: 0; transition: opacity 1.5s ease-in-out; 
             z-index: 9999; width: 100%;
+        }
+
+        canvas {
+            filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.4));
         }
     </style>
 </head>
 <body>
     <div id="ui-hint">✊ 聚合 ｜ 🖐️ 散开 ｜ ☝️ 换色 ｜ ✌️ 飘雪 ｜ 🤟 烟花</div>
-    <div id="gesture-text">等待手势...</div>
+    <div id="gesture-text">正在唤醒魔法...</div>
     <div id="romantic-text">Merry Christmas<br><span style="font-size: 0.45em; color: #fff;">送给最喜欢的你</span></div>
     
     <video id="webcam" autoplay playsinline></video>
     <canvas id="output_canvas"></canvas>
 
+    <!-- 引入依赖 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
     <script>
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x000000, 0.015);
-
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 0, 32); 
 
@@ -68,10 +72,8 @@
         }
         const texture = createParticleTexture();
 
-        // ==========================================
         // 1. 树形与五角星
-        // ==========================================
-        const particleCount = 8000;
+        const particleCount = 6000;
         const geometry = new THREE.BufferGeometry();
         const positions = new Float32Array(particleCount * 3);
         const colors = new Float32Array(particleCount * 3);
@@ -100,7 +102,7 @@
 
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos((Math.random() * 2) - 1);
-            const rExp = 15 + Math.random() * 15; // 爆炸范围加大
+            const rExp = 15 + Math.random() * 15; 
             explodeTargets[index] = rExp * Math.sin(phi) * Math.cos(theta);
             explodeTargets[index + 1] = rExp * Math.sin(phi) * Math.sin(theta);
             explodeTargets[index + 2] = rExp * Math.cos(phi);
@@ -123,7 +125,7 @@
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
         const material = new THREE.PointsMaterial({
-            size: 0.25, map: texture, vertexColors: true, transparent: true, opacity: 0.9,
+            size: 0.3, map: texture, vertexColors: true, transparent: true, opacity: 0.9,
             blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true 
         });
 
@@ -147,14 +149,12 @@
         }
         starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
         starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
-        const starMat = new THREE.PointsMaterial({ size: 0.35, map: texture, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+        const starMat = new THREE.PointsMaterial({ size: 0.4, map: texture, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
         const starMesh = new THREE.Points(starGeo, starMat);
         scene.add(starMesh);
 
-        // ==========================================
-        // 2. 升级版飘雪
-        // ==========================================
-        const snowCount = 800; // 数量翻倍
+        // 2. 飘雪
+        const snowCount = 500; 
         const snowGeo = new THREE.BufferGeometry();
         const snowPos = new Float32Array(snowCount * 3);
         const snowSpeeds = new Float32Array(snowCount);
@@ -162,30 +162,23 @@
             snowPos[i*3] = (Math.random() - 0.5) * 80;
             snowPos[i*3+1] = (Math.random() - 0.5) * 50;
             snowPos[i*3+2] = (Math.random() - 0.5) * 30 - 10;
-            snowSpeeds[i] = Math.random() * 0.2 + 0.05; // 速度加快
+            snowSpeeds[i] = Math.random() * 0.2 + 0.05; 
         }
         snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
         const snowMat = new THREE.PointsMaterial({ 
-            color: 0xffffff, 
-            size: 0.35, // 雪花变大
-            map: texture, 
-            transparent: true, 
-            opacity: 0, 
-            blending: THREE.AdditiveBlending, 
-            depthWrite: false 
+            color: 0xffffff, size: 0.35, map: texture, transparent: true, opacity: 0, 
+            blending: THREE.AdditiveBlending, depthWrite: false 
         });
         const snowMesh = new THREE.Points(snowGeo, snowMat);
         scene.add(snowMesh);
 
-        // ==========================================
-        // 3. 升级版烟花
-        // ==========================================
-        const fireworkCount = 1500; // 烟花粒子翻倍
+        // 3. 烟花
+        const fireworkCount = 1000; 
         const fwGeo = new THREE.BufferGeometry();
         const fwPos = new Float32Array(fireworkCount * 3);
         const fwVel = new Float32Array(fireworkCount * 3);
         const fwColors = new Float32Array(fireworkCount * 3);
-        const fwLives = new Float32Array(fireworkCount); // 记录生命值
+        const fwLives = new Float32Array(fireworkCount); 
         for(let i=0; i<fireworkCount; i++) {
             fwPos[i*3] = 9999; fwPos[i*3+1] = 9999; fwPos[i*3+2] = 9999;
             fwLives[i] = 0;
@@ -193,13 +186,8 @@
         fwGeo.setAttribute('position', new THREE.BufferAttribute(fwPos, 3));
         fwGeo.setAttribute('color', new THREE.BufferAttribute(fwColors, 3));
         const fwMat = new THREE.PointsMaterial({ 
-            size: 0.6, // 烟花变大
-            map: texture, 
-            vertexColors: true, 
-            transparent: true, 
-            opacity: 1, 
-            blending: THREE.AdditiveBlending, 
-            depthWrite: false 
+            size: 0.6, map: texture, vertexColors: true, transparent: true, opacity: 1, 
+            blending: THREE.AdditiveBlending, depthWrite: false 
         });
         const fwMesh = new THREE.Points(fwGeo, fwMat);
         scene.add(fwMesh);
@@ -209,9 +197,7 @@
         let currentProgress = 0;
         let time = 0;
 
-        // ==========================================
         // 4. 手势识别
-        // ==========================================
         const videoElement = document.getElementById('webcam');
         const gestureText = document.getElementById('gesture-text');
         const romanticText = document.getElementById('romantic-text');
@@ -235,7 +221,7 @@
                     gestureCount = 0;
                 }
 
-                if (gestureCount > 4) { 
+                if (gestureCount > 5) { 
                     processGesture(gesture);
                     gestureCount = 0; 
                 }
@@ -280,7 +266,7 @@
                 updateTreeColors();
             } else if (gesture === 'two') {
                 gestureText.innerText = "✌️ 飘雪";
-                snowMat.opacity = snowMat.opacity > 0 ? 0 : 1.0; // 飘雪透明度拉满
+                snowMat.opacity = snowMat.opacity > 0 ? 0 : 1.0; 
             } else if (gesture === 'three') {
                 gestureText.innerText = "🤟 烟花爆炸！";
                 triggerFirework();
@@ -311,7 +297,6 @@
             const posArray = fwPosAttr.array;
             const colArray = fwColAttr.array;
             
-            // 随机选一个中心点，让爆炸更分散
             const centerX = (Math.random() - 0.5) * 15;
             const centerY = 5 + Math.random() * 10;
 
@@ -323,21 +308,19 @@
 
                 const theta = Math.random() * Math.PI * 2;
                 const phi = Math.acos((Math.random() * 2) - 1);
-                // 爆炸速度大幅提升
                 const speed = 0.2 + Math.random() * 0.6; 
                 
                 fwVel[index] = speed * Math.sin(phi) * Math.cos(theta);
                 fwVel[index + 1] = speed * Math.sin(phi) * Math.sin(theta);
                 fwVel[index + 2] = speed * Math.cos(phi);
 
-                // 更亮的烟花颜色
                 const colors = [[1,0.2,0.2], [1,1,0.2], [0.2,1,1], [1,0.2,1]];
                 const chosenColor = colors[Math.floor(Math.random() * colors.length)];
                 
                 colArray[index] = chosenColor[0];
                 colArray[index + 1] = chosenColor[1];
                 colArray[index + 2] = chosenColor[2];
-                fwLives[i] = 1.0; // 满血
+                fwLives[i] = 1.0; 
             }
             fwPosAttr.needsUpdate = true;
             fwColAttr.needsUpdate = true;
@@ -349,9 +332,7 @@
         });
         cameraUtils.start();
 
-        // ==========================================
         // 5. 动画循环
-        // ==========================================
         function animate() {
             requestAnimationFrame(animate);
             time += 0.01;
@@ -382,7 +363,6 @@
             starMesh.rotation.y = time * 0.2;
             particles.rotation.y = time * 0.2;
 
-            // 飘雪更新（加速）
             if (snowMat.opacity > 0) {
                 const sPosArray = snowMesh.geometry.attributes.position.array;
                 for (let i = 0; i < snowCount; i++) {
@@ -397,14 +377,13 @@
                 snowMesh.geometry.attributes.position.needsUpdate = true;
             }
 
-            // 烟花更新（带重力与消散）
             const fwPosArray = fwMesh.geometry.attributes.position.array;
             const fwColArray = fwMesh.geometry.attributes.color.array;
             
             for (let i = 0; i < fireworkCount; i++) {
                 const index = i * 3;
                 if (fwLives[i] > 0) {
-                    fwLives[i] -= 0.015; // 消散速度
+                    fwLives[i] -= 0.015; 
                     
                     fwPosArray[index] += fwVel[index];
                     fwPosArray[index + 1] += fwVel[index + 1];
@@ -413,11 +392,8 @@
                     fwVel[index] *= 0.96;
                     fwVel[index + 1] *= 0.96;
                     fwVel[index + 2] *= 0.96;
-                    
-                    // 重力
                     fwVel[index + 1] -= 0.01;
 
-                    // 变暗
                     fwColArray[index] *= 0.98;
                     fwColArray[index + 1] *= 0.98;
                     fwColArray[index + 2] *= 0.98;
