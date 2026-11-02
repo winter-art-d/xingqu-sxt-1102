@@ -43,7 +43,6 @@
     <video id="webcam" autoplay playsinline></video>
     <canvas id="output_canvas"></canvas>
 
-    <!-- 引入依赖 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -153,21 +152,39 @@
         const starMesh = new THREE.Points(starGeo, starMat);
         scene.add(starMesh);
 
-        // 2. 飘雪
-        const snowCount = 500; 
+        // 2. 🌟 冰晶暴雪级别飘雪
+        const snowCount = 1500; 
         const snowGeo = new THREE.BufferGeometry();
         const snowPos = new Float32Array(snowCount * 3);
         const snowSpeeds = new Float32Array(snowCount);
+        
+        // 给雪花单独做一个纯白、边缘柔和的贴图，和树的贴图区分开！
+        const snowCanvas = document.createElement('canvas');
+        snowCanvas.width = 64; snowCanvas.height = 64;
+        const sCtx = snowCanvas.getContext('2d');
+        const sGradient = sCtx.createRadialGradient(32, 32, 0, 32, 32, 32);
+        sGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        sGradient.addColorStop(0.6, 'rgba(220, 240, 255, 0.8)'); // 带一点点冰蓝色
+        sGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        sCtx.fillStyle = sGradient; 
+        sCtx.fillRect(0, 0, 64, 64);
+        const snowTexture = new THREE.CanvasTexture(snowCanvas);
+
         for(let i=0; i<snowCount; i++) {
             snowPos[i*3] = (Math.random() - 0.5) * 80;
-            snowPos[i*3+1] = (Math.random() - 0.5) * 50;
-            snowPos[i*3+2] = (Math.random() - 0.5) * 30 - 10;
-            snowSpeeds[i] = Math.random() * 0.2 + 0.05; 
+            snowPos[i*3+1] = (Math.random() - 0.5) * 60;
+            snowPos[i*3+2] = (Math.random() - 0.5) * 40 - 5;
+            snowSpeeds[i] = Math.random() * 0.3 + 0.1; 
         }
         snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
         const snowMat = new THREE.PointsMaterial({ 
-            color: 0xffffff, size: 0.35, map: texture, transparent: true, opacity: 0, 
-            blending: THREE.AdditiveBlending, depthWrite: false 
+            color: 0xffffff, // 纯白色
+            size: 1.0, // 🌟 雪花尺寸比之前还要大一倍！像鹅毛！
+            map: snowTexture, // 使用独立的雪花贴图
+            transparent: true, 
+            opacity: 0, 
+            blending: THREE.NormalBlending, // 🌟 用普通混合，不叠加发光，这样纯白更明显！
+            depthWrite: false 
         });
         const snowMesh = new THREE.Points(snowGeo, snowMat);
         scene.add(snowMesh);
@@ -369,8 +386,8 @@
                     const index = i * 3;
                     sPosArray[index + 1] -= snowSpeeds[i];
                     sPosArray[index] += Math.sin(time * 2 + i) * 0.02;
-                    if (sPosArray[index + 1] < -25) {
-                        sPosArray[index + 1] = 25;
+                    if (sPosArray[index + 1] < -30) {
+                        sPosArray[index + 1] = 30;
                         sPosArray[index] = (Math.random() - 0.5) * 80;
                     }
                 }
