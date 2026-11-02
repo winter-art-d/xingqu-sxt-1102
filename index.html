@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>终极版：手势魔法圣诞树</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; width: 100vw; height: 100vh; font-family: 'Microsoft YaHei', sans-serif; }
+        
+        #webcam, #output_canvas { display: none; }
+
+        #ui-hint {
+            position: absolute; bottom: 30px; width: 100%; text-align: center; 
+            color: rgba(255, 215, 0, 0.6); font-size: 16px; pointer-events: none; 
+            letter-spacing: 3px; z-index: 999; text-shadow: 0 0 10px #ffd700;
+        }
+        
+        #gesture-text {
+            position: absolute; top: 30px; width: 100%; text-align: center;
+            color: #fff; font-size: 26px; font-weight: bold; pointer-events: none;
+            z-index: 999; text-shadow: 0 0 20px #00ffff; opacity: 0.8;
+        }
+
+        #romantic-text {
+            position: absolute; top: 15%; left: 50%; transform: translate(-50%, -50%);
+            color: #fff8d6; font-size: 3.5rem; font-weight: bold; text-align: center;
+            text-shadow: 0 0 10px #ffd700, 0 0 20px #ffa500, 0 0 40px #ff8c00;
+            pointer-events: none; opacity: 0; transition: opacity 1.5s ease-in-out; 
+            z-index: 9999; width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui-hint">✊ 聚合 ｜ 🖐️ 散开 ｜ ☝️ 换色 ｜ ✌️ 飘雪 ｜ 🤟 烟花</div>
+    <div id="gesture-text">等待手势...</div>
+    <div id="romantic-text">Merry Christmas<br><span style="font-size: 0.45em; color: #fff;">送给最喜欢的你</span></div>
+    
+    <video id="webcam" autoplay playsinline></video>
+    <canvas id="output_canvas"></canvas>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <script>
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 32); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        function createParticleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.2, 'rgba(255, 230, 100, 1)'); 
+            gradient.addColorStop(0.5, 'rgba(255, 180, 0, 0.6)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = gradient; ctx.fillRect(0, 0, 64, 64);
+            return new THREE.CanvasTexture(canvas);
+        }
+        const texture = createParticleTexture();
+
+        // ==========================================
+        // 1. 树形与五角星
+        // ==========================================
+        const particleCount = 8000;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const colors = new Float32Array(particleCount * 3);
+        const treeTargets = new Float32Array(particleCount * 3);
+        const explodeTargets = new Float32Array(particleCount * 3);
+
+        const themeClassic = [new THREE.Color(0xffd700), new THREE.Color(0xff3333), new THREE.Color(0x33ff33)];
+        const themeIce = [new THREE.Color(0x00ffff), new THREE.Color(0xffffff), new THREE.Color(0x0088ff)];
+        const themePink = [new THREE.Color(0xff69b4), new THREE.Color(0xff1493), new THREE.Color(0xffd700)];
+        let currentTheme = themeClassic;
+
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+        const treeHeight = 18; 
+        const maxRadius = 7;
+
+        for (let i = 0; i < particleCount; i++) {
+            const index = i * 3;
+            const progress = i / particleCount; 
+            const y = (progress - 0.5) * treeHeight;
+            const radius = maxRadius * (1 - progress) * (0.8 + Math.random() * 0.2);
+            const angle = i * goldenAngle;
+            
+            treeTargets[index] = Math.cos(angle) * radius;
+            treeTargets[index + 1] = y;
+            treeTargets[index + 2] = Math.sin(angle) * radius;
+
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos((Math.random() * 2) - 1);
+            const rExp = 15 + Math.random() * 15; // 爆炸范围加大
+            explodeTargets[index] = rExp * Math.sin(phi) * Math.cos(theta);
+            explodeTargets[index + 1] = rExp * Math.sin(phi) * Math.sin(theta);
+            explodeTargets[index + 2] = rExp * Math.cos(phi);
+
+            positions[index] = treeTargets[index];
+            positions[index + 1] = treeTargets[index + 1];
+            positions[index + 2] = treeTargets[index + 2];
+
+            let c = currentTheme[0];
+            if (progress > 0.98) c = new THREE.Color(0xffffff);
+            else {
+                const rand = Math.random();
+                if (rand > 0.85 && rand < 0.95) c = currentTheme[1];
+                else if (rand >= 0.95) c = currentTheme[2];
+            }
+            colors[index] = c.r; colors[index + 1] = c.g; colors[index + 2] = c.b;
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        const material = new THREE.PointsMaterial({
+            size: 0.25, map: texture, vertexColors: true, transparent: true, opacity: 0.9,
+            blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true 
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // 星星
+        const starGeo = new THREE.BufferGeometry();
+        const starPositions = new Float32Array(300 * 3);
+        const starColors = new Float32Array(300 * 3);
+        for(let i=0; i<300; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const k = (a * 5) / (Math.PI * 2); 
+            const fraction = k - Math.floor(k);
+            const r = 0.5 + 1.2 * Math.abs(fraction - 0.5) * 2;
+            const finalR = r * Math.random();
+            starPositions[i*3] = Math.cos(a) * finalR;
+            starPositions[i*3+1] = 9.5 + Math.sin(a) * finalR;
+            starPositions[i*3+2] = (Math.random() - 0.5) * 0.3;
+            starColors[i*3] = 1; starColors[i*3+1] = 1; starColors[i*3+2] = 0.6;
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+        const starMat = new THREE.PointsMaterial({ size: 0.35, map: texture, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+        const starMesh = new THREE.Points(starGeo, starMat);
+        scene.add(starMesh);
+
+        // ==========================================
+        // 2. 升级版飘雪
+        // ==========================================
+        const snowCount = 800; // 数量翻倍
+        const snowGeo = new THREE.BufferGeometry();
+        const snowPos = new Float32Array(snowCount * 3);
+        const snowSpeeds = new Float32Array(snowCount);
+        for(let i=0; i<snowCount; i++) {
+            snowPos[i*3] = (Math.random() - 0.5) * 80;
+            snowPos[i*3+1] = (Math.random() - 0.5) * 50;
+            snowPos[i*3+2] = (Math.random() - 0.5) * 30 - 10;
+            snowSpeeds[i] = Math.random() * 0.2 + 0.05; // 速度加快
+        }
+        snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+        const snowMat = new THREE.PointsMaterial({ 
+            color: 0xffffff, 
+            size: 0.35, // 雪花变大
+            map: texture, 
+            transparent: true, 
+            opacity: 0, 
+            blending: THREE.AdditiveBlending, 
+            depthWrite: false 
+        });
+        const snowMesh = new THREE.Points(snowGeo, snowMat);
+        scene.add(snowMesh);
+
+        // ==========================================
+        // 3. 升级版烟花
+        // ==========================================
+        const fireworkCount = 1500; // 烟花粒子翻倍
+        const fwGeo = new THREE.BufferGeometry();
+        const fwPos = new Float32Array(fireworkCount * 3);
+        const fwVel = new Float32Array(fireworkCount * 3);
+        const fwColors = new Float32Array(fireworkCount * 3);
+        const fwLives = new Float32Array(fireworkCount); // 记录生命值
+        for(let i=0; i<fireworkCount; i++) {
+            fwPos[i*3] = 9999; fwPos[i*3+1] = 9999; fwPos[i*3+2] = 9999;
+            fwLives[i] = 0;
+        }
+        fwGeo.setAttribute('position', new THREE.BufferAttribute(fwPos, 3));
+        fwGeo.setAttribute('color', new THREE.BufferAttribute(fwColors, 3));
+        const fwMat = new THREE.PointsMaterial({ 
+            size: 0.6, // 烟花变大
+            map: texture, 
+            vertexColors: true, 
+            transparent: true, 
+            opacity: 1, 
+            blending: THREE.AdditiveBlending, 
+            depthWrite: false 
+        });
+        const fwMesh = new THREE.Points(fwGeo, fwMat);
+        scene.add(fwMesh);
+
+        let isExploded = false;
+        let targetProgress = 0;
+        let currentProgress = 0;
+        let time = 0;
+
+        // ==========================================
+        // 4. 手势识别
+        // ==========================================
+        const videoElement = document.getElementById('webcam');
+        const gestureText = document.getElementById('gesture-text');
+        const romanticText = document.getElementById('romantic-text');
+
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+        hands.onResults(onResults);
+
+        let lastGesture = 'none';
+        let gestureCount = 0;
+
+        function onResults(results) {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                const gesture = detectGesture(landmarks);
+
+                if (gesture === lastGesture) {
+                    gestureCount++;
+                } else {
+                    lastGesture = gesture;
+                    gestureCount = 0;
+                }
+
+                if (gestureCount > 4) { 
+                    processGesture(gesture);
+                    gestureCount = 0; 
+                }
+            }
+        }
+
+        function detectGesture(landmarks) {
+            const isIndexOpen = landmarks[8].y < landmarks[6].y;
+            const isMiddleOpen = landmarks[12].y < landmarks[10].y;
+            const isRingOpen = landmarks[16].y < landmarks[14].y;
+            const isPinkyOpen = landmarks[20].y < landmarks[18].y;
+
+            let openCount = 0;
+            if (isIndexOpen) openCount++;
+            if (isMiddleOpen) openCount++;
+            if (isRingOpen) openCount++;
+            if (isPinkyOpen) openCount++;
+
+            if (openCount === 0) return 'fist';
+            if (openCount >= 4) return 'open';
+            if (openCount === 1 && isIndexOpen) return 'one';
+            if (openCount === 2 && isIndexOpen && isMiddleOpen) return 'two';
+            if (openCount === 3 && isIndexOpen && isMiddleOpen && isRingOpen) return 'three';
+            return 'unknown';
+        }
+
+        function processGesture(gesture) {
+            if (gesture === 'fist') {
+                gestureText.innerText = "✊ 聚合";
+                isExploded = false;
+                targetProgress = 0;
+                romanticText.style.opacity = '0';
+            } else if (gesture === 'open') {
+                gestureText.innerText = "🖐️ 散开";
+                isExploded = true;
+                targetProgress = 1;
+                romanticText.style.opacity = '1';
+            } else if (gesture === 'one') {
+                gestureText.innerText = "☝️ 切换主题";
+                const themes = [themeIce, themePink, themeClassic];
+                currentTheme = themes[Math.floor(Math.random() * themes.length)];
+                updateTreeColors();
+            } else if (gesture === 'two') {
+                gestureText.innerText = "✌️ 飘雪";
+                snowMat.opacity = snowMat.opacity > 0 ? 0 : 1.0; // 飘雪透明度拉满
+            } else if (gesture === 'three') {
+                gestureText.innerText = "🤟 烟花爆炸！";
+                triggerFirework();
+            }
+        }
+
+        function updateTreeColors() {
+            const colorsAttr = geometry.attributes.color;
+            const colArray = colorsAttr.array;
+            for (let i = 0; i < particleCount; i++) {
+                const index = i * 3;
+                const progress = i / particleCount;
+                let c = currentTheme[0];
+                if (progress > 0.98) c = new THREE.Color(0xffffff);
+                else {
+                    const rand = Math.random();
+                    if (rand > 0.85 && rand < 0.95) c = currentTheme[1];
+                    else if (rand >= 0.95) c = currentTheme[2];
+                }
+                colArray[index] = c.r; colArray[index + 1] = c.g; colArray[index + 2] = c.b;
+            }
+            colorsAttr.needsUpdate = true;
+        }
+
+        function triggerFirework() {
+            const fwPosAttr = fwMesh.geometry.attributes.position;
+            const fwColAttr = fwMesh.geometry.attributes.color;
+            const posArray = fwPosAttr.array;
+            const colArray = fwColAttr.array;
+            
+            // 随机选一个中心点，让爆炸更分散
+            const centerX = (Math.random() - 0.5) * 15;
+            const centerY = 5 + Math.random() * 10;
+
+            for (let i = 0; i < fireworkCount; i++) {
+                const index = i * 3;
+                posArray[index] = centerX;
+                posArray[index + 1] = centerY;
+                posArray[index + 2] = 0;
+
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+                // 爆炸速度大幅提升
+                const speed = 0.2 + Math.random() * 0.6; 
+                
+                fwVel[index] = speed * Math.sin(phi) * Math.cos(theta);
+                fwVel[index + 1] = speed * Math.sin(phi) * Math.sin(theta);
+                fwVel[index + 2] = speed * Math.cos(phi);
+
+                // 更亮的烟花颜色
+                const colors = [[1,0.2,0.2], [1,1,0.2], [0.2,1,1], [1,0.2,1]];
+                const chosenColor = colors[Math.floor(Math.random() * colors.length)];
+                
+                colArray[index] = chosenColor[0];
+                colArray[index + 1] = chosenColor[1];
+                colArray[index + 2] = chosenColor[2];
+                fwLives[i] = 1.0; // 满血
+            }
+            fwPosAttr.needsUpdate = true;
+            fwColAttr.needsUpdate = true;
+        }
+
+        const cameraUtils = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({image: videoElement}); },
+            width: 640, height: 480
+        });
+        cameraUtils.start();
+
+        // ==========================================
+        // 5. 动画循环
+        // ==========================================
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.01;
+
+            currentProgress += (targetProgress - currentProgress) * 0.04;
+            const positionsAttr = geometry.attributes.position;
+            const posArray = positionsAttr.array;
+
+            for (let i = 0; i < particleCount; i++) {
+                const index = i * 3;
+                const tx = treeTargets[index] * (1 - currentProgress) + explodeTargets[index] * currentProgress;
+                const ty = treeTargets[index + 1] * (1 - currentProgress) + explodeTargets[index + 1] * currentProgress;
+                const tz = treeTargets[index + 2] * (1 - currentProgress) + explodeTargets[index + 2] * currentProgress;
+
+                const floatY = Math.sin(time * 2 + i) * 0.05;
+
+                posArray[index] += (tx - posArray[index]) * 0.1;
+                posArray[index + 1] += (ty + floatY - posArray[index + 1]) * 0.1;
+                posArray[index + 2] += (tz - posArray[index + 2]) * 0.1;
+            }
+            positionsAttr.needsUpdate = true;
+
+            starMesh.position.set(
+                particles.position.x * currentProgress,
+                particles.position.y * currentProgress,
+                particles.position.z * currentProgress
+            );
+            starMesh.rotation.y = time * 0.2;
+            particles.rotation.y = time * 0.2;
+
+            // 飘雪更新（加速）
+            if (snowMat.opacity > 0) {
+                const sPosArray = snowMesh.geometry.attributes.position.array;
+                for (let i = 0; i < snowCount; i++) {
+                    const index = i * 3;
+                    sPosArray[index + 1] -= snowSpeeds[i];
+                    sPosArray[index] += Math.sin(time * 2 + i) * 0.02;
+                    if (sPosArray[index + 1] < -25) {
+                        sPosArray[index + 1] = 25;
+                        sPosArray[index] = (Math.random() - 0.5) * 80;
+                    }
+                }
+                snowMesh.geometry.attributes.position.needsUpdate = true;
+            }
+
+            // 烟花更新（带重力与消散）
+            const fwPosArray = fwMesh.geometry.attributes.position.array;
+            const fwColArray = fwMesh.geometry.attributes.color.array;
+            
+            for (let i = 0; i < fireworkCount; i++) {
+                const index = i * 3;
+                if (fwLives[i] > 0) {
+                    fwLives[i] -= 0.015; // 消散速度
+                    
+                    fwPosArray[index] += fwVel[index];
+                    fwPosArray[index + 1] += fwVel[index + 1];
+                    fwPosArray[index + 2] += fwVel[index + 2];
+                    
+                    fwVel[index] *= 0.96;
+                    fwVel[index + 1] *= 0.96;
+                    fwVel[index + 2] *= 0.96;
+                    
+                    // 重力
+                    fwVel[index + 1] -= 0.01;
+
+                    // 变暗
+                    fwColArray[index] *= 0.98;
+                    fwColArray[index + 1] *= 0.98;
+                    fwColArray[index + 2] *= 0.98;
+                } else {
+                    fwPosArray[index] = 9999;
+                }
+            }
+            fwMesh.geometry.attributes.position.needsUpdate = true;
+            fwMesh.geometry.attributes.color.needsUpdate = true;
+
+            material.opacity = 0.85 + Math.sin(time * 3) * 0.15;
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
